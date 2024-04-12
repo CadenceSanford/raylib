@@ -114,6 +114,9 @@
 #ifndef PI
     #define PI 3.14159265358979323846f
 #endif
+#ifndef TAU
+    #define TAU 6.28318530717958647692f
+#endif
 #ifndef DEG2RAD
     #define DEG2RAD (PI/180.0f)
 #endif
@@ -325,7 +328,23 @@ typedef struct Camera3D {
     int projection;         // Camera projection: CAMERA_PERSPECTIVE or CAMERA_ORTHOGRAPHIC
 } Camera3D;
 
+typedef struct CameraSettings {
+    int mode;
+    float orbitalSpeed;
+    float moveSpeed;
+    float rotationSpeed;
+    float panSpeed;
+    float zoomSpeed;
+    float zoomIncrement;
+    float mouseMoveSensitivity;
+} CameraSettings;
+
 typedef Camera3D Camera;    // Camera type fallback, defaults to Camera3D
+
+typedef struct CameraEx {
+    Camera3D camera;
+    CameraSettings settings;
+} CameraEx;
 
 // Camera2D, defines position/orientation in 2d space
 typedef struct Camera2D {
@@ -531,22 +550,26 @@ typedef struct AutomationEventList {
 // NOTE: Every bit registers one state (use it with bit masks)
 // By default all flags are set to 0
 typedef enum {
-    FLAG_VSYNC_HINT         = 0x00000040,   // Set to try enabling V-Sync on GPU
     FLAG_FULLSCREEN_MODE    = 0x00000002,   // Set to run program in fullscreen
     FLAG_WINDOW_RESIZABLE   = 0x00000004,   // Set to allow resizable window
     FLAG_WINDOW_UNDECORATED = 0x00000008,   // Set to disable window decoration (frame and buttons)
+    FLAG_WINDOW_TRANSPARENT = 0x00000010,   // Set to allow transparent framebuffer
+    FLAG_SRGB               = 0x00000020,   // Set to try enabling sRGB on GPU
+    FLAG_VSYNC_HINT         = 0x00000040,   // Set to try enabling V-Sync on GPU
     FLAG_WINDOW_HIDDEN      = 0x00000080,   // Set to hide window
+    FLAG_WINDOW_ALWAYS_RUN  = 0x00000100,   // Set to allow windows running while minimized
     FLAG_WINDOW_MINIMIZED   = 0x00000200,   // Set to minimize window (iconify)
     FLAG_WINDOW_MAXIMIZED   = 0x00000400,   // Set to maximize window (expanded to monitor)
     FLAG_WINDOW_UNFOCUSED   = 0x00000800,   // Set to window non focused
     FLAG_WINDOW_TOPMOST     = 0x00001000,   // Set to window always on top
-    FLAG_WINDOW_ALWAYS_RUN  = 0x00000100,   // Set to allow windows running while minimized
-    FLAG_WINDOW_TRANSPARENT = 0x00000010,   // Set to allow transparent framebuffer
     FLAG_WINDOW_HIGHDPI     = 0x00002000,   // Set to support HighDPI
     FLAG_WINDOW_MOUSE_PASSTHROUGH = 0x00004000, // Set to support mouse passthrough, only supported when FLAG_WINDOW_UNDECORATED
     FLAG_BORDERLESS_WINDOWED_MODE = 0x00008000, // Set to run program in borderless windowed mode
-    FLAG_MSAA_4X_HINT       = 0x00000020,   // Set to try enabling MSAA 4X
-    FLAG_INTERLACED_HINT    = 0x00010000    // Set to try enabling interlaced video format (for V3D)
+    FLAG_INTERLACED_HINT    = 0x00010000,    // Set to try enabling interlaced video format (for V3D)
+    FLAG_MSAA_2X_HINT       = 0x00100000,   // Set to try enabling MSAA 2X
+    FLAG_MSAA_4X_HINT       = 0x00200000,   // Set to try enabling MSAA 4X
+    FLAG_MSAA_8X_HINT       = 0x00400000,   // Set to try enabling MSAA 8X
+    FLAG_MSAA_16X_HINT      = 0x00800000,   // Set to try enabling MSAA 16X
 } ConfigFlags;
 
 // Trace log level
@@ -803,6 +826,7 @@ typedef enum {
     SHADER_UNIFORM_VEC3,            // Shader uniform type: vec3 (3 float)
     SHADER_UNIFORM_VEC4,            // Shader uniform type: vec4 (4 float)
     SHADER_UNIFORM_INT,             // Shader uniform type: int
+    SHADER_UNIFORM_UINT,            // Shader uniform type: unsigned int
     SHADER_UNIFORM_IVEC2,           // Shader uniform type: ivec2 (2 int)
     SHADER_UNIFORM_IVEC3,           // Shader uniform type: ivec3 (3 int)
     SHADER_UNIFORM_IVEC4,           // Shader uniform type: ivec4 (4 int)
@@ -958,6 +982,7 @@ extern "C" {            // Prevents name mangling of functions
 RLAPI void InitWindow(int width, int height, const char *title);  // Initialize window and OpenGL context
 RLAPI void CloseWindow(void);                                     // Close window and unload OpenGL context
 RLAPI bool WindowShouldClose(void);                               // Check if application should close (KEY_ESCAPE pressed or windows close icon clicked)
+RLAPI void SetWindowShouldClose(void);                            // Set window to close (KEY_ESCAPE pressed)
 RLAPI bool IsWindowReady(void);                                   // Check if window has been initialized successfully
 RLAPI bool IsWindowFullscreen(void);                              // Check if window is currently fullscreen
 RLAPI bool IsWindowHidden(void);                                  // Check if window is currently hidden (only PLATFORM_DESKTOP)
@@ -1038,7 +1063,9 @@ RLAPI void UnloadVrStereoConfig(VrStereoConfig config);           // Unload VR s
 // Shader management functions
 // NOTE: Shader functionality is not available on OpenGL 1.1
 RLAPI Shader LoadShader(const char *vsFileName, const char *fsFileName);   // Load shader from files and bind default locations
+RLAPI Shader LoadShaderEx(const char *vsFileName, const char *gsFileName, const char *fsFileName); // Load shader from files and bind default locations
 RLAPI Shader LoadShaderFromMemory(const char *vsCode, const char *fsCode); // Load shader from code strings and bind default locations
+RLAPI Shader LoadShaderFromMemoryEx(const char *vsCode, const char *gsCode, const char *fsCode); // Load shader from code strings and bind default locations
 RLAPI bool IsShaderReady(Shader shader);                                   // Check if a shader is ready
 RLAPI int GetShaderLocation(Shader shader, const char *uniformName);       // Get shader uniform location
 RLAPI int GetShaderLocationAttrib(Shader shader, const char *attribName);  // Get shader attribute location
@@ -1069,6 +1096,9 @@ RLAPI int GetFPS(void);                                           // Get current
 // NOTE: Those functions are intended for advance users that want full control over the frame processing
 // By default EndDrawing() does this job: draws everything + SwapScreenBuffer() + manage frame timing + PollInputEvents()
 // To avoid that behaviour and control frame processes manually, enable in config.h: SUPPORT_CUSTOM_FRAME_CONTROL
+RLAPI void DrawGifRecording(void);
+RLAPI void RecordAutomations(void);
+RLAPI void ScreenCapturing(void);
 RLAPI void SwapScreenBuffer(void);                                // Swap back buffer with front buffer (screen drawing)
 RLAPI void PollInputEvents(void);                                 // Register all input events
 RLAPI void WaitTime(double seconds);                              // Wait for some time (halt program execution)
@@ -1214,6 +1244,7 @@ RLAPI float GetGesturePinchAngle(void);                 // Get gesture pinch ang
 // Camera System Functions (Module: rcamera)
 //------------------------------------------------------------------------------------
 RLAPI void UpdateCamera(Camera *camera, int mode);      // Update camera position for selected mode
+RLAPI void UpdateCameraEx(CameraEx *camera, float delta); // Update camera parameters for selected settings
 RLAPI void UpdateCameraPro(Camera *camera, Vector3 movement, Vector3 rotation, float zoom); // Update camera movement/rotation
 
 //------------------------------------------------------------------------------------

@@ -829,9 +829,11 @@ void BeginDrawing(void)
     // WARNING: Previously to BeginDrawing() other render textures drawing could happen,
     // consequently the measure for update vs draw is not accurate (only the total frame time is accurate)
 
+#if !defined(SUPPORT_CUSTOM_FRAME_CONTROL)
     CORE.Time.current = GetTime();      // Number of elapsed seconds since InitTimer()
     CORE.Time.update = CORE.Time.current - CORE.Time.previous;
     CORE.Time.previous = CORE.Time.current;
+#endif
 
     rlLoadIdentity();                   // Reset current matrix (modelview)
     rlMultMatrixf(MatrixToFloat(CORE.Window.screenScale)); // Apply screen scaling
@@ -840,11 +842,8 @@ void BeginDrawing(void)
                                         // NOTE: Not required with OpenGL 3.3+
 }
 
-// End canvas drawing and swap buffers (double buffering)
-void EndDrawing(void)
+void DrawGifRecording(void)
 {
-    rlDrawRenderBatchActive();      // Update and draw internal render batch
-
 #if defined(SUPPORT_GIF_RECORDING)
     // Draw record indicator
     if (gifRecording)
@@ -885,36 +884,17 @@ void EndDrawing(void)
         rlDrawRenderBatchActive();  // Update and draw internal render batch
     }
 #endif
+}
 
+void RecordAutomations(void)
+{
 #if defined(SUPPORT_AUTOMATION_EVENTS)
     if (automationEventRecording) RecordAutomationEvent();    // Event recording
 #endif
+}
 
-#if !defined(SUPPORT_CUSTOM_FRAME_CONTROL)
-    SwapScreenBuffer();                  // Copy back buffer to front buffer (screen)
-
-    // Frame time control system
-    CORE.Time.current = GetTime();
-    CORE.Time.draw = CORE.Time.current - CORE.Time.previous;
-    CORE.Time.previous = CORE.Time.current;
-
-    CORE.Time.frame = CORE.Time.update + CORE.Time.draw;
-
-    // Wait for some milliseconds...
-    if (CORE.Time.frame < CORE.Time.target)
-    {
-        WaitTime(CORE.Time.target - CORE.Time.frame);
-
-        CORE.Time.current = GetTime();
-        double waitTime = CORE.Time.current - CORE.Time.previous;
-        CORE.Time.previous = CORE.Time.current;
-
-        CORE.Time.frame += waitTime;    // Total frame time: update + draw + wait
-    }
-
-    PollInputEvents();      // Poll user events (before next frame update)
-#endif
-
+void ScreenCapturing(void)
+{
 #if defined(SUPPORT_SCREEN_CAPTURE)
     if (IsKeyPressed(KEY_F12))
     {
@@ -952,6 +932,49 @@ void EndDrawing(void)
         }
     }
 #endif  // SUPPORT_SCREEN_CAPTURE
+}
+
+// End canvas drawing and swap buffers (double buffering)
+void EndDrawing(void)
+{
+    rlDrawRenderBatchActive();      // Update and draw internal render batch
+
+#if !defined(SUPPORT_CUSTOM_FRAME_CONTROL)
+    DrawGifRecording();             // Draw GIF recording indicator
+#endif
+
+#if !defined(SUPPORT_CUSTOM_FRAME_CONTROL)
+    RecordAutomations();            // Record automation events
+#endif
+
+#if !defined(SUPPORT_CUSTOM_FRAME_CONTROL)
+    SwapScreenBuffer();                  // Copy back buffer to front buffer (screen)
+
+    // Frame time control system
+    CORE.Time.current = GetTime();
+    CORE.Time.draw = CORE.Time.current - CORE.Time.previous;
+    CORE.Time.previous = CORE.Time.current;
+
+    CORE.Time.frame = CORE.Time.update + CORE.Time.draw;
+
+    // Wait for some milliseconds...
+    if (CORE.Time.frame < CORE.Time.target)
+    {
+        WaitTime(CORE.Time.target - CORE.Time.frame);
+
+        CORE.Time.current = GetTime();
+        double waitTime = CORE.Time.current - CORE.Time.previous;
+        CORE.Time.previous = CORE.Time.current;
+
+        CORE.Time.frame += waitTime;    // Total frame time: update + draw + wait
+    }
+
+    PollInputEvents();      // Poll user events (before next frame update)
+#endif
+
+#if !defined(SUPPORT_CUSTOM_FRAME_CONTROL)
+    ScreenCapturing();
+#endif
 
     CORE.Time.frameCounter++;
 }
@@ -1267,12 +1290,85 @@ Shader LoadShader(const char *vsFileName, const char *fsFileName)
     return shader;
 }
 
+// Load shader from files and bind default locations
+// NOTE: If shader string is NULL, using default vertex/fragment shaders
+Shader LoadShaderEx(const char *vsFileName, const char *gsFileName, const char *fsFileName)
+{
+    Shader shader = { 0 };
+
+    char *vShaderStr = NULL;
+    char *gShaderStr = NULL;
+    char *fShaderStr = NULL;
+
+    if (vsFileName != NULL) vShaderStr = LoadFileText(vsFileName);
+    if (gsFileName != NULL) gShaderStr = LoadFileText(gsFileName);
+    if (fsFileName != NULL) fShaderStr = LoadFileText(fsFileName);
+
+    shader = LoadShaderFromMemoryEx(vShaderStr, gShaderStr, fShaderStr);
+
+    UnloadFileText(vShaderStr);
+    UnloadFileText(gShaderStr);
+    UnloadFileText(fShaderStr);
+
+    return shader;
+}
+
 // Load shader from code strings and bind default locations
 Shader LoadShaderFromMemory(const char *vsCode, const char *fsCode)
 {
     Shader shader = { 0 };
 
     shader.id = rlLoadShaderCode(vsCode, fsCode);
+
+    // After shader loading, we TRY to set default location names
+    if (shader.id > 0)
+    {
+        // Default shader attribute locations have been binded before linking:
+        //          vertex position location    = 0
+        //          vertex texcoord location    = 1
+        //          vertex normal location      = 2
+        //          vertex color location       = 3
+        //          vertex tangent location     = 4
+        //          vertex texcoord2 location   = 5
+
+        // NOTE: If any location is not found, loc point becomes -1
+
+        shader.locs = (int *)RL_CALLOC(RL_MAX_SHADER_LOCATIONS, sizeof(int));
+
+        // All locations reset to -1 (no location)
+        for (int i = 0; i < RL_MAX_SHADER_LOCATIONS; i++) shader.locs[i] = -1;
+
+        // Get handles to GLSL input attribute locations
+        shader.locs[SHADER_LOC_VERTEX_POSITION] = rlGetLocationAttrib(shader.id, RL_DEFAULT_SHADER_ATTRIB_NAME_POSITION);
+        shader.locs[SHADER_LOC_VERTEX_TEXCOORD01] = rlGetLocationAttrib(shader.id, RL_DEFAULT_SHADER_ATTRIB_NAME_TEXCOORD);
+        shader.locs[SHADER_LOC_VERTEX_TEXCOORD02] = rlGetLocationAttrib(shader.id, RL_DEFAULT_SHADER_ATTRIB_NAME_TEXCOORD2);
+        shader.locs[SHADER_LOC_VERTEX_NORMAL] = rlGetLocationAttrib(shader.id, RL_DEFAULT_SHADER_ATTRIB_NAME_NORMAL);
+        shader.locs[SHADER_LOC_VERTEX_TANGENT] = rlGetLocationAttrib(shader.id, RL_DEFAULT_SHADER_ATTRIB_NAME_TANGENT);
+        shader.locs[SHADER_LOC_VERTEX_COLOR] = rlGetLocationAttrib(shader.id, RL_DEFAULT_SHADER_ATTRIB_NAME_COLOR);
+
+        // Get handles to GLSL uniform locations (vertex shader)
+        shader.locs[SHADER_LOC_MATRIX_MVP] = rlGetLocationUniform(shader.id, RL_DEFAULT_SHADER_UNIFORM_NAME_MVP);
+        shader.locs[SHADER_LOC_MATRIX_VIEW] = rlGetLocationUniform(shader.id, RL_DEFAULT_SHADER_UNIFORM_NAME_VIEW);
+        shader.locs[SHADER_LOC_MATRIX_PROJECTION] = rlGetLocationUniform(shader.id, RL_DEFAULT_SHADER_UNIFORM_NAME_PROJECTION);
+        shader.locs[SHADER_LOC_MATRIX_MODEL] = rlGetLocationUniform(shader.id, RL_DEFAULT_SHADER_UNIFORM_NAME_MODEL);
+        shader.locs[SHADER_LOC_MATRIX_NORMAL] = rlGetLocationUniform(shader.id, RL_DEFAULT_SHADER_UNIFORM_NAME_NORMAL);
+
+        // Get handles to GLSL uniform locations (fragment shader)
+        shader.locs[SHADER_LOC_COLOR_DIFFUSE] = rlGetLocationUniform(shader.id, RL_DEFAULT_SHADER_UNIFORM_NAME_COLOR);
+        shader.locs[SHADER_LOC_MAP_DIFFUSE] = rlGetLocationUniform(shader.id, RL_DEFAULT_SHADER_SAMPLER2D_NAME_TEXTURE0);  // SHADER_LOC_MAP_ALBEDO
+        shader.locs[SHADER_LOC_MAP_SPECULAR] = rlGetLocationUniform(shader.id, RL_DEFAULT_SHADER_SAMPLER2D_NAME_TEXTURE1); // SHADER_LOC_MAP_METALNESS
+        shader.locs[SHADER_LOC_MAP_NORMAL] = rlGetLocationUniform(shader.id, RL_DEFAULT_SHADER_SAMPLER2D_NAME_TEXTURE2);
+    }
+
+    return shader;
+}
+
+// Load shader from code strings and bind default locations
+Shader LoadShaderFromMemoryEx(const char *vsCode, const char *gsCode, const char *fsCode)
+{
+    Shader shader = { 0 };
+
+    shader.id = rlLoadShaderCodeEx(vsCode, gsCode, fsCode);
 
     // After shader loading, we TRY to set default location names
     if (shader.id > 0)
@@ -1591,10 +1687,12 @@ Vector2 GetScreenToWorld2D(Vector2 position, Camera2D camera)
 // Set target FPS (maximum)
 void SetTargetFPS(int fps)
 {
+#if !defined(SUPPORT_CUSTOM_FRAME_CONTROL)
     if (fps < 1) CORE.Time.target = 0.0;
     else CORE.Time.target = 1.0/(double)fps;
 
     TRACELOG(LOG_INFO, "TIMER: Target time per frame: %02.03f milliseconds", (float)CORE.Time.target*1000.0f);
+#endif
 }
 
 // Get current FPS
@@ -1643,7 +1741,11 @@ int GetFPS(void)
 // Get time in seconds for last frame drawn (delta time)
 float GetFrameTime(void)
 {
+#if defined(SUPPORT_CUSTOM_FRAME_CONTROL)
+    return 0.0f;
+#else
     return (float)CORE.Time.frame;
+#endif
 }
 
 //----------------------------------------------------------------------------------
@@ -3088,7 +3190,9 @@ void InitTimer(void)
     else TRACELOG(LOG_WARNING, "TIMER: Hi-resolution timer not available");
 #endif
 
+#if !defined(SUPPORT_CUSTOM_FRAME_CONTROL)
     CORE.Time.previous = GetTime();     // Get time as double
+#endif
 }
 
 // Set viewport for a provided width and height

@@ -141,6 +141,11 @@ bool WindowShouldClose(void)
     else return true;
 }
 
+void SetWindowShouldClose(void)
+{
+    CORE.Window.shouldClose = true;
+}
+
 // Toggle fullscreen mode
 void ToggleFullscreen(void)
 {
@@ -1297,11 +1302,24 @@ int InitPlatform(void)
     if ((CORE.Window.flags & FLAG_WINDOW_MOUSE_PASSTHROUGH) > 0) glfwWindowHint(GLFW_MOUSE_PASSTHROUGH, GLFW_TRUE);
     else glfwWindowHint(GLFW_MOUSE_PASSTHROUGH, GLFW_FALSE);
 
-    if (CORE.Window.flags & FLAG_MSAA_4X_HINT)
+    if (CORE.Window.flags & FLAG_SRGB)
+    {
+        // Request an sRGB framebuffer
+        TRACELOG(LOG_INFO, "DISPLAY: Trying to enable sRGB framebuffer");
+        glfwWindowHint(GLFW_SRGB_CAPABLE, GLFW_TRUE);
+    }
+
+    // Set MSAA samples
+    int mssaSamples = 0;
+    if (CORE.Window.flags & FLAG_MSAA_2X_HINT) mssaSamples = 2;
+    if (CORE.Window.flags & FLAG_MSAA_4X_HINT) mssaSamples = 4;
+    if (CORE.Window.flags & FLAG_MSAA_8X_HINT) mssaSamples = 8;
+    if (CORE.Window.flags & FLAG_MSAA_16X_HINT) mssaSamples = 16;
+    if (mssaSamples > 0)
     {
         // NOTE: MSAA is only enabled for main framebuffer, not user-created FBOs
-        TRACELOG(LOG_INFO, "DISPLAY: Trying to enable MSAA x4");
-        glfwWindowHint(GLFW_SAMPLES, 4);   // Tries to enable multisampling x4 (MSAA), default is 0
+        TRACELOG(LOG_INFO, "DISPLAY: Trying to enable MSAA x%i", mssaSamples);
+        glfwWindowHint(GLFW_SAMPLES, mssaSamples);   // Tries to enable multisampling x4 (MSAA), default is 0
     }
 
     // NOTE: When asking for an OpenGL context version, most drivers provide the highest supported version
@@ -1515,7 +1533,7 @@ int InitPlatform(void)
 
     // If graphic device is no properly initialized, we end program
     if (!CORE.Window.ready) { TRACELOG(LOG_FATAL, "PLATFORM: Failed to initialize graphic device"); return -1; }
-    else 
+    else
     {
         // Try to center window on screen but avoiding window-bar outside of screen
         int posX = GetMonitorWidth(GetCurrentMonitor())/2 - CORE.Window.screen.width/2;

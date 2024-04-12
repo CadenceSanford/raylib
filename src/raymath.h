@@ -84,6 +84,10 @@
     #define PI 3.14159265358979323846f
 #endif
 
+#ifndef TAU
+    #define TAU 6.28318530717958647692f
+#endif
+
 #ifndef EPSILON
     #define EPSILON 0.000001f
 #endif
@@ -157,13 +161,13 @@ typedef struct Matrix {
 #endif
 
 // NOTE: Helper types to be used instead of array return types for *ToFloat functions
-typedef struct float3 {
+typedef struct rlfloat3 {
     float v[3];
-} float3;
+} rlfloat3;
 
-typedef struct float16 {
+typedef struct rlfloat16 {
     float v[16];
-} float16;
+} rlfloat16;
 
 #include <math.h>       // Required for: sinf(), cosf(), tan(), atan2f(), sqrtf(), floor(), fminf(), fmaxf(), fabsf()
 
@@ -1106,9 +1110,9 @@ RMAPI Vector3 Vector3Unproject(Vector3 source, Matrix projection, Matrix view)
 }
 
 // Get Vector3 as float array
-RMAPI float3 Vector3ToFloatV(Vector3 v)
+RMAPI rlfloat3 Vector3ToFloatV(Vector3 v)
 {
-    float3 buffer = { 0 };
+    rlfloat3 buffer = { 0 };
 
     buffer.v[0] = v.x;
     buffer.v[1] = v.y;
@@ -1820,32 +1824,32 @@ RMAPI Matrix MatrixScale(float x, float y, float z)
 }
 
 // Get perspective projection matrix
-RMAPI Matrix MatrixFrustum(double left, double right, double bottom, double top, double near, double far)
+RMAPI Matrix MatrixFrustum(double left, double right, double bottom, double top, double rlnear, double rlfar)
 {
     Matrix result = { 0 };
 
     float rl = (float)(right - left);
     float tb = (float)(top - bottom);
-    float fn = (float)(far - near);
+    float fn = (float)(rlfar - rlnear);
 
-    result.m0 = ((float)near*2.0f)/rl;
+    result.m0 = ((float)rlnear*2.0f)/rl;
     result.m1 = 0.0f;
     result.m2 = 0.0f;
     result.m3 = 0.0f;
 
     result.m4 = 0.0f;
-    result.m5 = ((float)near*2.0f)/tb;
+    result.m5 = ((float)rlnear*2.0f)/tb;
     result.m6 = 0.0f;
     result.m7 = 0.0f;
 
     result.m8 = ((float)right + (float)left)/rl;
     result.m9 = ((float)top + (float)bottom)/tb;
-    result.m10 = -((float)far + (float)near)/fn;
+    result.m10 = -((float)rlfar + (float)rlnear)/fn;
     result.m11 = -1.0f;
 
     result.m12 = 0.0f;
     result.m13 = 0.0f;
-    result.m14 = -((float)far*(float)near*2.0f)/fn;
+    result.m14 = -((float)rlfar*(float)rlnear*2.0f)/fn;
     result.m15 = 0.0f;
 
     return result;
@@ -1963,9 +1967,9 @@ RMAPI Matrix MatrixLookAt(Vector3 eye, Vector3 target, Vector3 up)
 }
 
 // Get float array of matrix data
-RMAPI float16 MatrixToFloatV(Matrix mat)
+RMAPI rlfloat16 MatrixToFloatV(Matrix mat)
 {
-    float16 result = { 0 };
+    rlfloat16 result = { 0 };
 
     result.v[0] = mat.m0;
     result.v[1] = mat.m1;

@@ -108,6 +108,30 @@
 #define RLGL_H
 
 #define RLGL_VERSION  "4.5"
+#define RLGL_ENABLE_OPENGL_DEBUG_CONTEXT 1
+// #define RL_DEFAULT_BATCH_BUFFER_ELEMENTS 8192     // Default internal render batch elements limits
+// #define RL_DEFAULT_BATCH_BUFFERS 1           // Default number of batch buffers (multi-buffering)
+// #define RL_DEFAULT_BATCH_DRAWCALLS 256       // Default number of batch draw calls (by state changes: mode, texture)
+// #define RL_DEFAULT_BATCH_MAX_TEXTURE_UNITS 4 // Maximum number of textures units that can be activated on batch drawing (SetShaderValueTexture())
+// #define RL_MAX_MATRIX_STACK_SIZE 32  // Maximum size of internal Matrix stack
+// #define RL_MAX_SHADER_LOCATIONS 32  // Maximum number of shader locations supported
+// #define RL_CULL_DISTANCE_NEAR 0.01  // Default projection matrix near cull distance
+// #define RL_CULL_DISTANCE_FAR 1000.0 // Default projection matrix far cull distance
+// #define RL_DEFAULT_SHADER_ATTRIB_NAME_POSITION "vertexPosition"        // Bound by default to shader location: 0
+// #define RL_DEFAULT_SHADER_ATTRIB_NAME_TEXCOORD "vertexTexCoord"   // Bound by default to shader location: 1
+// #define RL_DEFAULT_SHADER_ATTRIB_NAME_NORMAL "vertexNormal"       // Bound by default to shader location: 2
+// #define RL_DEFAULT_SHADER_ATTRIB_NAME_COLOR "vertexColor"         // Bound by default to shader location: 3
+// #define RL_DEFAULT_SHADER_ATTRIB_NAME_TANGENT "vertexTangent"     // Bound by default to shader location: 4
+// #define RL_DEFAULT_SHADER_ATTRIB_NAME_TEXCOORD2 "vertexTexCoord2" // Bound by default to shader location: 5
+// #define RL_DEFAULT_SHADER_UNIFORM_NAME_MVP "mvp"                  // model-view-projection matrix
+// #define RL_DEFAULT_SHADER_UNIFORM_NAME_VIEW "matView"             // view matrix
+// #define RL_DEFAULT_SHADER_UNIFORM_NAME_PROJECTION "matProjection" // projection matrix
+// #define RL_DEFAULT_SHADER_UNIFORM_NAME_MODEL "matModel"           // model matrix
+// #define RL_DEFAULT_SHADER_UNIFORM_NAME_NORMAL "matNormal"         // normal matrix (transpose(inverse(matModelView)))
+// #define RL_DEFAULT_SHADER_UNIFORM_NAME_COLOR "colDiffuse"         // color diffuse (base tint color, multiplied by texture color)
+// #define RL_DEFAULT_SHADER_SAMPLER2D_NAME_TEXTURE0 "texture0"      // texture0 (texture slot active 0)
+// #define RL_DEFAULT_SHADER_SAMPLER2D_NAME_TEXTURE1 "texture1"      // texture1 (texture slot active 1)
+// #define RL_DEFAULT_SHADER_SAMPLER2D_NAME_TEXTURE2 "texture2"      // texture2 (texture slot active 2)
 
 // Function specifiers in case library is build/used as a shared library
 // NOTE: Microsoft specifiers to tell compiler that symbols are imported/exported from a .dll
@@ -503,6 +527,7 @@ typedef enum {
     RL_SHADER_UNIFORM_VEC3,             // Shader uniform type: vec3 (3 float)
     RL_SHADER_UNIFORM_VEC4,             // Shader uniform type: vec4 (4 float)
     RL_SHADER_UNIFORM_INT,              // Shader uniform type: int
+    RL_SHADER_UNIFORM_UINT,             // Shader uniform type: unsigned int
     RL_SHADER_UNIFORM_IVEC2,            // Shader uniform type: ivec2 (2 int)
     RL_SHADER_UNIFORM_IVEC3,            // Shader uniform type: ivec3 (3 int)
     RL_SHADER_UNIFORM_IVEC4,            // Shader uniform type: ivec4 (4 int)
@@ -641,6 +666,7 @@ RLAPI void rlDisableScissorTest(void);                  // Disable scissor test
 RLAPI void rlScissor(int x, int y, int width, int height); // Scissor test
 RLAPI void rlEnableWireMode(void);                      // Enable wire mode
 RLAPI void rlEnablePointMode(void);                     // Enable point mode
+RLAPI void rlDisablePointMode(void);                     // Enable point mode
 RLAPI void rlDisableWireMode(void);                     // Disable wire mode ( and point ) maybe rename
 RLAPI void rlSetLineWidth(float width);                 // Set the line drawing width
 RLAPI float rlGetLineWidth(void);                       // Get the line drawing width
@@ -724,8 +750,10 @@ RLAPI void rlUnloadFramebuffer(unsigned int id);                          // Del
 
 // Shaders management
 RLAPI unsigned int rlLoadShaderCode(const char *vsCode, const char *fsCode);    // Load shader from code strings
+RLAPI unsigned int rlLoadShaderCodeEx(const char *vsCode, const char *gsCode, const char *fsCode);    // Load shader from code strings
 RLAPI unsigned int rlCompileShader(const char *shaderCode, int type);           // Compile custom shader and return shader id (type: RL_VERTEX_SHADER, RL_FRAGMENT_SHADER, RL_COMPUTE_SHADER)
 RLAPI unsigned int rlLoadShaderProgram(unsigned int vShaderId, unsigned int fShaderId); // Load custom shader program
+RLAPI unsigned int rlLoadShaderProgramEx(unsigned int vShaderId, unsigned int gShaderId, unsigned int fShaderId); // Load custom shader program
 RLAPI void rlUnloadShaderProgram(unsigned int id);                              // Unload shader program
 RLAPI int rlGetLocationUniform(unsigned int shaderId, const char *uniformName); // Get shader location uniform
 RLAPI int rlGetLocationAttrib(unsigned int shaderId, const char *attribName);   // Get shader location attribute
@@ -740,6 +768,7 @@ RLAPI void rlComputeShaderDispatch(unsigned int groupX, unsigned int groupY, uns
 
 // Shader buffer storage object management (ssbo)
 RLAPI unsigned int rlLoadShaderBuffer(unsigned int size, const void *data, int usageHint); // Load shader storage buffer object (SSBO)
+RLAPI unsigned int rlLoadShaderBufferEx(unsigned int size, const void *data); // Load shader storage buffer object (SSBO)
 RLAPI void rlUnloadShaderBuffer(unsigned int ssboId);                           // Unload shader storage buffer object (SSBO)
 RLAPI void rlUpdateShaderBuffer(unsigned int id, const void *data, unsigned int dataSize, unsigned int offset); // Update SSBO buffer data
 RLAPI void rlBindShaderBuffer(unsigned int id, unsigned int index);             // Bind SSBO buffer
@@ -1883,6 +1912,16 @@ void rlEnablePointMode(void)
     glEnable(GL_PROGRAM_POINT_SIZE);
 #endif
 }
+
+void rlDisablePointMode(void)
+{
+#if defined(GRAPHICS_API_OPENGL_11) || defined(GRAPHICS_API_OPENGL_33)
+    // NOTE: glPolygonMode() not available on OpenGL ES
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    glDisable(GL_PROGRAM_POINT_SIZE);
+#endif
+}
+
 // Disable wire mode
 void rlDisableWireMode(void)
 {
@@ -2137,6 +2176,7 @@ void rlglInit(int width, int height)
 #if defined(RLGL_ENABLE_OPENGL_DEBUG_CONTEXT) && defined(GRAPHICS_API_OPENGL_43)
     if ((glDebugMessageCallback != NULL) && (glDebugMessageControl != NULL))
     {
+        TRACELOG(LOG_INFO, "GL: Enabling OpenGL debug context");
         glDebugMessageCallback(rlDebugMessageCallback, 0);
         // glDebugMessageControl(GL_DEBUG_SOURCE_API, GL_DEBUG_TYPE_ERROR, GL_DEBUG_SEVERITY_HIGH, 0, 0, GL_TRUE);
 
@@ -3945,6 +3985,95 @@ unsigned int rlLoadShaderCode(const char *vsCode, const char *fsCode)
     return id;
 }
 
+// Load shader from code strings
+// NOTE: If shader string is NULL, using default vertex/fragment shaders
+unsigned int rlLoadShaderCodeEx(const char *vsCode, const char *gsCode, const char *fsCode)
+{
+    unsigned int id = 0;
+
+#if defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_ES2)
+    unsigned int vertexShaderId = 0;
+    unsigned int geometryShaderId = 0;
+    unsigned int fragmentShaderId = 0;
+
+    // Compile vertex shader (if provided)
+    if (vsCode != NULL) vertexShaderId = rlCompileShader(vsCode, GL_VERTEX_SHADER);
+    // In case no vertex shader was provided or compilation failed, we use default vertex shader
+    if (vertexShaderId == 0) vertexShaderId = RLGL.State.defaultVShaderId;
+
+    // Compile geometry shader (if provided)
+    if (gsCode != NULL) geometryShaderId = rlCompileShader(gsCode, GL_GEOMETRY_SHADER);
+
+    // Compile fragment shader (if provided)
+    if (fsCode != NULL) fragmentShaderId = rlCompileShader(fsCode, GL_FRAGMENT_SHADER);
+    // In case no fragment shader was provided or compilation failed, we use default fragment shader
+    if (fragmentShaderId == 0) fragmentShaderId = RLGL.State.defaultFShaderId;
+
+    // In case vertex and fragment shader are the default ones, no need to recompile, we can just assign the default shader program id
+    if ((vertexShaderId == RLGL.State.defaultVShaderId) && (fragmentShaderId == RLGL.State.defaultFShaderId) && (geometryShaderId == 0))
+        id = RLGL.State.defaultShaderId;
+    else
+    {
+        // One of or both shader are new, we need to compile a new shader program
+        id = rlLoadShaderProgramEx(vertexShaderId, geometryShaderId, fragmentShaderId);
+
+        // We can detach and delete vertex/fragment shaders (if not default ones)
+        // NOTE: We detach shader before deletion to make sure memory is freed
+        if (vertexShaderId != RLGL.State.defaultVShaderId)
+        {
+            // WARNING: Shader program linkage could fail and returned id is 0
+            if (id > 0) glDetachShader(id, vertexShaderId);
+            glDeleteShader(vertexShaderId);
+        }
+        if (geometryShaderId != 0)
+        {
+            // WARNING: Shader program linkage could fail and returned id is 0
+            if (id > 0) glDetachShader(id, geometryShaderId);
+            glDeleteShader(geometryShaderId);
+        }
+        if (fragmentShaderId != RLGL.State.defaultFShaderId)
+        {
+            // WARNING: Shader program linkage could fail and returned id is 0
+            if (id > 0) glDetachShader(id, fragmentShaderId);
+            glDeleteShader(fragmentShaderId);
+        }
+
+        // In case shader program loading failed, we assign default shader
+        if (id == 0)
+        {
+            // In case shader loading fails, we return the default shader
+            TRACELOG(RL_LOG_WARNING, "SHADER: Failed to load custom shader code, using default shader");
+            id = RLGL.State.defaultShaderId;
+        }
+        /*
+        else
+        {
+            // Get available shader uniforms
+            // NOTE: This information is useful for debug...
+            int uniformCount = -1;
+            glGetProgramiv(id, GL_ACTIVE_UNIFORMS, &uniformCount);
+
+            for (int i = 0; i < uniformCount; i++)
+            {
+                int namelen = -1;
+                int num = -1;
+                char name[256] = { 0 };     // Assume no variable names longer than 256
+                GLenum type = GL_ZERO;
+
+                // Get the name of the uniforms
+                glGetActiveUniform(id, i, sizeof(name) - 1, &namelen, &num, &type, name);
+
+                name[namelen] = 0;
+                TRACELOGD("SHADER: [ID %i] Active uniform (%s) set at location: %i", id, name, glGetUniformLocation(id, name));
+            }
+        }
+        */
+    }
+#endif
+
+    return id;
+}
+
 // Compile custom shader and return shader id
 unsigned int rlCompileShader(const char *shaderCode, int type)
 {
@@ -3964,7 +4093,7 @@ unsigned int rlCompileShader(const char *shaderCode, int type)
         {
             case GL_VERTEX_SHADER: TRACELOG(RL_LOG_WARNING, "SHADER: [ID %i] Failed to compile vertex shader code", shader); break;
             case GL_FRAGMENT_SHADER: TRACELOG(RL_LOG_WARNING, "SHADER: [ID %i] Failed to compile fragment shader code", shader); break;
-            //case GL_GEOMETRY_SHADER:
+            case GL_GEOMETRY_SHADER: TRACELOG(RL_LOG_WARNING, "SHADER: [ID %i] Failed to compile geometry shader code", shader); break;
         #if defined(GRAPHICS_API_OPENGL_43)
             case GL_COMPUTE_SHADER: TRACELOG(RL_LOG_WARNING, "SHADER: [ID %i] Failed to compile compute shader code", shader); break;
         #endif
@@ -3989,7 +4118,7 @@ unsigned int rlCompileShader(const char *shaderCode, int type)
         {
             case GL_VERTEX_SHADER: TRACELOG(RL_LOG_INFO, "SHADER: [ID %i] Vertex shader compiled successfully", shader); break;
             case GL_FRAGMENT_SHADER: TRACELOG(RL_LOG_INFO, "SHADER: [ID %i] Fragment shader compiled successfully", shader); break;
-            //case GL_GEOMETRY_SHADER:
+            case GL_GEOMETRY_SHADER: TRACELOG(RL_LOG_INFO, "SHADER: [ID %i] Geometry shader compiled successfully", shader); break;
         #if defined(GRAPHICS_API_OPENGL_43)
             case GL_COMPUTE_SHADER: TRACELOG(RL_LOG_INFO, "SHADER: [ID %i] Compute shader compiled successfully", shader); break;
         #endif
@@ -4011,6 +4140,68 @@ unsigned int rlLoadShaderProgram(unsigned int vShaderId, unsigned int fShaderId)
     program = glCreateProgram();
 
     glAttachShader(program, vShaderId);
+    glAttachShader(program, fShaderId);
+
+    // NOTE: Default attribute shader locations must be Bound before linking
+    glBindAttribLocation(program, 0, RL_DEFAULT_SHADER_ATTRIB_NAME_POSITION);
+    glBindAttribLocation(program, 1, RL_DEFAULT_SHADER_ATTRIB_NAME_TEXCOORD);
+    glBindAttribLocation(program, 2, RL_DEFAULT_SHADER_ATTRIB_NAME_NORMAL);
+    glBindAttribLocation(program, 3, RL_DEFAULT_SHADER_ATTRIB_NAME_COLOR);
+    glBindAttribLocation(program, 4, RL_DEFAULT_SHADER_ATTRIB_NAME_TANGENT);
+    glBindAttribLocation(program, 5, RL_DEFAULT_SHADER_ATTRIB_NAME_TEXCOORD2);
+
+    // NOTE: If some attrib name is no found on the shader, it locations becomes -1
+
+    glLinkProgram(program);
+
+    // NOTE: All uniform variables are intitialised to 0 when a program links
+
+    glGetProgramiv(program, GL_LINK_STATUS, &success);
+
+    if (success == GL_FALSE)
+    {
+        TRACELOG(RL_LOG_WARNING, "SHADER: [ID %i] Failed to link shader program", program);
+
+        int maxLength = 0;
+        glGetProgramiv(program, GL_INFO_LOG_LENGTH, &maxLength);
+
+        if (maxLength > 0)
+        {
+            int length = 0;
+            char *log = (char *)RL_CALLOC(maxLength, sizeof(char));
+            glGetProgramInfoLog(program, maxLength, &length, log);
+            TRACELOG(RL_LOG_WARNING, "SHADER: [ID %i] Link error: %s", program, log);
+            RL_FREE(log);
+        }
+
+        glDeleteProgram(program);
+
+        program = 0;
+    }
+    else
+    {
+        // Get the size of compiled shader program (not available on OpenGL ES 2.0)
+        // NOTE: If GL_LINK_STATUS is GL_FALSE, program binary length is zero.
+        //GLint binarySize = 0;
+        //glGetProgramiv(id, GL_PROGRAM_BINARY_LENGTH, &binarySize);
+
+        TRACELOG(RL_LOG_INFO, "SHADER: [ID %i] Program shader loaded successfully", program);
+    }
+#endif
+    return program;
+}
+
+// Load custom shader strings and return program id
+unsigned int rlLoadShaderProgramEx(unsigned int vShaderId, unsigned int gShaderId, unsigned int fShaderId)
+{
+    unsigned int program = 0;
+
+#if defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_ES2)
+    GLint success = 0;
+    program = glCreateProgram();
+
+    glAttachShader(program, vShaderId);
+    if (gShaderId > 0) glAttachShader(program, gShaderId);
     glAttachShader(program, fShaderId);
 
     // NOTE: Default attribute shader locations must be Bound before linking
@@ -4109,6 +4300,7 @@ void rlSetUniform(int locIndex, const void *value, int uniformType, int count)
         case RL_SHADER_UNIFORM_VEC3: glUniform3fv(locIndex, count, (float *)value); break;
         case RL_SHADER_UNIFORM_VEC4: glUniform4fv(locIndex, count, (float *)value); break;
         case RL_SHADER_UNIFORM_INT: glUniform1iv(locIndex, count, (int *)value); break;
+        case RL_SHADER_UNIFORM_UINT: glUniform1uiv(locIndex, count, (unsigned int *)value); break;
         case RL_SHADER_UNIFORM_IVEC2: glUniform2iv(locIndex, count, (int *)value); break;
         case RL_SHADER_UNIFORM_IVEC3: glUniform3iv(locIndex, count, (int *)value); break;
         case RL_SHADER_UNIFORM_IVEC4: glUniform4iv(locIndex, count, (int *)value); break;
@@ -4254,6 +4446,22 @@ unsigned int rlLoadShaderBuffer(unsigned int size, const void *data, int usageHi
     glGenBuffers(1, &ssbo);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, ssbo);
     glBufferData(GL_SHADER_STORAGE_BUFFER, size, data, usageHint? usageHint : RL_STREAM_COPY);
+    if (data == NULL) glClearBufferData(GL_SHADER_STORAGE_BUFFER, GL_R8UI, GL_RED_INTEGER, GL_UNSIGNED_BYTE, NULL);    // Clear buffer data to 0
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+#endif
+
+    return ssbo;
+}
+
+// Load shader storage buffer object (SSBO)
+unsigned int rlLoadShaderBufferEx(unsigned int size, const void *data)
+{
+    unsigned int ssbo = 0;
+
+#if defined(GRAPHICS_API_OPENGL_43)
+    glGenBuffers(1, &ssbo);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, ssbo);
+    glBufferStorage(GL_SHADER_STORAGE_BUFFER, size, data, GL_DYNAMIC_STORAGE_BIT | GL_MAP_WRITE_BIT | GL_MAP_READ_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT);
     if (data == NULL) glClearBufferData(GL_SHADER_STORAGE_BUFFER, GL_R8UI, GL_RED_INTEGER, GL_UNSIGNED_BYTE, NULL);    // Clear buffer data to 0
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 #endif

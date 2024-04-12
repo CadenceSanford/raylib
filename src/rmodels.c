@@ -1528,7 +1528,7 @@ void DrawMeshInstanced(Mesh mesh, Material material, const Matrix *transforms, i
 {
 #if defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_ES2)
     // Instancing required variables
-    float16 *instanceTransforms = NULL;
+    rlfloat16 *instanceTransforms = NULL;
     unsigned int instancesVboId = 0;
 
     // Bind shader program
@@ -1577,9 +1577,9 @@ void DrawMeshInstanced(Mesh mesh, Material material, const Matrix *transforms, i
     if (material.shader.locs[SHADER_LOC_MATRIX_PROJECTION] != -1) rlSetUniformMatrix(material.shader.locs[SHADER_LOC_MATRIX_PROJECTION], matProjection);
 
     // Create instances buffer
-    instanceTransforms = (float16 *)RL_MALLOC(instances*sizeof(float16));
+    instanceTransforms = (rlfloat16 *)RL_MALLOC(instances*sizeof(rlfloat16));
 
-    // Fill buffer with instances transformations as float16 arrays
+    // Fill buffer with instances transformations as rlfloat16 arrays
     for (int i = 0; i < instances; i++) instanceTransforms[i] = MatrixToFloatV(transforms[i]);
 
     // Enable mesh VAO to attach new buffer
@@ -1589,7 +1589,7 @@ void DrawMeshInstanced(Mesh mesh, Material material, const Matrix *transforms, i
     // It isn't clear which would be reliably faster in all cases and on all platforms,
     // anecdotally glMapBuffer() seems very slow (syncs) while glBufferSubData() seems
     // no faster, since we're transferring all the transform matrices anyway
-    instancesVboId = rlLoadVertexBuffer(instanceTransforms, instances*sizeof(float16), false);
+    instancesVboId = rlLoadVertexBuffer(instanceTransforms, instances*sizeof(rlfloat16), false);
 
     // Instances transformation matrices are send to shader attribute location: SHADER_LOC_MATRIX_MODEL
     for (unsigned int i = 0; i < 4; i++)
@@ -2037,16 +2037,18 @@ bool IsMaterialReady(Material material)
 void UnloadMaterial(Material material)
 {
     // Unload material shader (avoid unloading default shader, managed by raylib)
-    if (material.shader.id != rlGetShaderIdDefault()) UnloadShader(material.shader);
+    // NOTES: avoid manually unloading shader
+    // if (material.shader.id != rlGetShaderIdDefault()) UnloadShader(material.shader);
 
     // Unload loaded texture maps (avoid unloading default texture, managed by raylib)
-    if (material.maps != NULL)
-    {
-        for (int i = 0; i < MAX_MATERIAL_MAPS; i++)
-        {
-            if (material.maps[i].texture.id != rlGetTextureIdDefault()) rlUnloadTexture(material.maps[i].texture.id);
-        }
-    }
+    // NOTES: avoid manually unloading textures
+    // if (material.maps != NULL)
+    // {
+    //     for (int i = 0; i < MAX_MATERIAL_MAPS; i++)
+    //     {
+    //         if (material.maps[i].texture.id != rlGetTextureIdDefault()) rlUnloadTexture(material.maps[i].texture.id);
+    //     }
+    // }
 
     RL_FREE(material.maps);
 }
@@ -5378,7 +5380,7 @@ static bool GetPoseAtTimeGLTF(cgltf_accessor *input, cgltf_accessor *output, flo
         }
     }
 
-    float t = (time - tstart)/fmax((tend - tstart), EPSILON);
+    float t = (time - tstart)/fmaxf((tend - tstart), EPSILON);
     t = (t < 0.0f)? 0.0f : t;
     t = (t > 1.0f)? 1.0f : t;
 

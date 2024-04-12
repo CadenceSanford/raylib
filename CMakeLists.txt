@@ -18,6 +18,12 @@ cmake_policy(SET CMP0054 NEW)
 # See https://cmake.org/cmake/help/latest/policy/CMP0063.html
 cmake_policy(SET CMP0063 NEW)
 
+# See https://cmake.org/cmake/help/latest/policy/CMP0077.html
+cmake_policy(SET CMP0077 NEW)
+
+# See https://cmake.org/cmake/help/latest/policy/CMP0003.html
+cmake_policy(SET CMP0003 NEW)
+
 # Directory for easier includes
 # Anywhere you see include(...) you can check <root>/cmake for that file
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
