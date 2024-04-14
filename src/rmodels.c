@@ -2041,14 +2041,13 @@ void UnloadMaterial(Material material)
     // if (material.shader.id != rlGetShaderIdDefault()) UnloadShader(material.shader);
 
     // Unload loaded texture maps (avoid unloading default texture, managed by raylib)
-    // NOTES: avoid manually unloading textures
-    // if (material.maps != NULL)
-    // {
-    //     for (int i = 0; i < MAX_MATERIAL_MAPS; i++)
-    //     {
-    //         if (material.maps[i].texture.id != rlGetTextureIdDefault()) rlUnloadTexture(material.maps[i].texture.id);
-    //     }
-    // }
+    if (material.maps != NULL)
+    {
+        for (int i = 0; i < MAX_MATERIAL_MAPS; i++)
+        {
+            if (material.maps[i].texture.id != rlGetTextureIdDefault()) rlUnloadTexture(material.maps[i].texture.id);
+        }
+    }
 
     RL_FREE(material.maps);
 }
