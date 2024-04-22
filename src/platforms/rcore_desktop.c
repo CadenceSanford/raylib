@@ -1395,7 +1395,7 @@ int InitPlatform(void)
 
     if (CORE.Window.fullscreen)
     {
-        // remember center for switchinging from fullscreen to window
+        // Remember center for switchinging from fullscreen to window
         if ((CORE.Window.screen.height == CORE.Window.display.height) && (CORE.Window.screen.width == CORE.Window.display.width))
         {
             // If screen width/height equal to the display, we can't calculate the window pos for toggling full-screened/windowed.

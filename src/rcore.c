@@ -1516,7 +1516,7 @@ void SetShaderValueTexture(Shader shader, int locIndex, Texture2D texture)
 Ray GetScreenToWorldRay(Vector2 position, Camera camera)
 {
     Ray ray = GetScreenToWorldRayEx(position, camera, GetScreenWidth(), GetScreenHeight());
-    
+
     return ray;
 }
 
@@ -1559,8 +1559,8 @@ Ray GetScreenToWorldRayEx(Vector2 position, Camera camera, int width, int height
     Vector3 farPoint = Vector3Unproject((Vector3){ deviceCoords.x, deviceCoords.y, 1.0f }, matProj, matView);
 
     // Unproject the mouse cursor in the near plane
-    // We need this as the source position because orthographic projects, 
-    // compared to perspective doesn't have a convergence point, 
+    // We need this as the source position because orthographic projects,
+    // compared to perspective doesn't have a convergence point,
     // meaning that the "eye" of the camera is more like a plane than a point
     Vector3 cameraPlanePointerPos = Vector3Unproject((Vector3){ deviceCoords.x, deviceCoords.y, -1.0f }, matProj, matView);
 
@@ -1580,7 +1580,7 @@ Ray GetScreenToWorldRayEx(Vector2 position, Camera camera, int width, int height
 Matrix GetCameraMatrix(Camera camera)
 {
     Matrix mat = MatrixLookAt(camera.position, camera.target, camera.up);
-    
+
     return mat;
 }
 
@@ -2053,9 +2053,9 @@ const char *GetFileExtension(const char *fileName)
 static const char *strprbrk(const char *s, const char *charset)
 {
     const char *latestMatch = NULL;
-    
+
     for (; s = strpbrk(s, charset), s != NULL; latestMatch = s++) { }
-    
+
     return latestMatch;
 }
 
@@ -2063,9 +2063,9 @@ static const char *strprbrk(const char *s, const char *charset)
 const char *GetFileName(const char *filePath)
 {
     const char *fileName = NULL;
-    
+
     if (filePath != NULL) fileName = strprbrk(filePath, "\\/");
-    
+
     if (fileName != NULL) return filePath;
 
     return fileName + 1;
@@ -2346,9 +2346,9 @@ bool IsPathFile(const char *path)
 bool IsFileDropped(void)
 {
     bool result = false;
-    
+
     if (CORE.Window.dropFileCount > 0) result = true;
-    
+
     return result;
 }
 
